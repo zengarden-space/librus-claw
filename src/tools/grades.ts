@@ -28,7 +28,7 @@ export function registerGradesTools(api: OpenClawPluginApi): void {
       try {
         const client = await getLibrusClient(cfg);
 
-        // Try numeric grades first
+        // Try numeric grades first (secondary school)
         const numeric = (await client.info.getGrades()) as SubjectGrades[];
         const hasNumeric = numeric.some(Boolean);
 
@@ -55,26 +55,9 @@ export function registerGradesTools(api: OpenClawPluginApi): void {
           return { details: null, content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
         }
 
-        // Fall back to descriptive grades (primary school)
-        let rows = await scrapeDescriptiveGrades(client.caller);
-
-        if (params.subject) {
-          const q = params.subject.toLowerCase();
-          rows = rows.filter((r) => r.area.toLowerCase().includes(q));
-        }
-
-        const result = rows.map((r) => {
-          const s1 = params.semester === 2 ? [] : r.semester1;
-          const s2 = params.semester === 1 ? [] : r.semester2;
-          return {
-            type: "descriptive",
-            area: r.area,
-            semester1: s1.map((g) => ({ value: g.value, date: g.date, skill: g.skill, teacher: g.teacher, comment: g.comment })),
-            semester2: s2.map((g) => ({ value: g.value, date: g.date, skill: g.skill, teacher: g.teacher, comment: g.comment })),
-          };
-        });
-
-        return { details: null, content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+        // Fall back to descriptive grades (primary school) — plain text for AI to interpret
+        const text = await scrapeDescriptiveGrades(client.caller);
+        return { details: null, content: [{ type: "text" as const, text }] };
       } catch (err) {
         invalidateSession();
         throw err;

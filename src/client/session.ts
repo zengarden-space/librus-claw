@@ -4,7 +4,6 @@ import type { PluginConfig } from "./types.js";
 const require = createRequire(import.meta.url);
 
 const API_URL = "https://api.librus.pl";
-const BASE_URL = "https://synergia.librus.pl";
 
 type LibrusInstance = {
   authorize(username: string, password: string): Promise<void>;

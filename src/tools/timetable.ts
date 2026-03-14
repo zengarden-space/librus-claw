@@ -18,7 +18,7 @@ export function registerTimetableTools(api: OpenClawPluginApi): void {
     description:
       "Fetch the school timetable from Librus Synergia. " +
       "Use when the user asks about their schedule, lessons, classes, or what they have today/tomorrow/this week. " +
-      "Returns lessons with times, subjects, and teachers grouped by day.",
+      "Returns the timetable for the requested week.",
     parameters: Type.Object({
       date: Type.Optional(
         Type.String({
@@ -31,8 +31,8 @@ export function registerTimetableTools(api: OpenClawPluginApi): void {
       try {
         const client = await getLibrusClient(cfg);
         const weekStart = getMondayOf(params.date ? new Date(params.date) : new Date());
-        const lessons = await scrapeTimetable(client.caller, weekStart);
-        return { details: null, content: [{ type: "text" as const, text: JSON.stringify(lessons, null, 2) }] };
+        const text = await scrapeTimetable(client.caller, weekStart);
+        return { details: null, content: [{ type: "text" as const, text }] };
       } catch (err) {
         invalidateSession();
         throw err;
