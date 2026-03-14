@@ -46,6 +46,7 @@ if (!username || !password) {
 }
 
 import { getLibrusClient } from "../src/client/session.js";
+import { scrapeDescriptiveGrades, scrapeAttendance, scrapeTimetable } from "../src/client/scraper.js";
 
 const cfg = { username, password };
 
@@ -81,20 +82,14 @@ async function main(): Promise<void> {
   })();
 
   await run("Account info", () => client.info.getAccountInfo());
-  await run("Lucky number", () => client.info.getLuckyNumber());
-  await run("Grades", () => client.info.getGrades());
-  await run("Absences", () => client.absence.getAbsences());
-  await run("Homework subjects", () => client.homework.listSubjects());
   await run("Announcements", () => client.inbox.listAnnouncements());
   await run("Inbox", () => client.inbox.listInbox(5));
+  await run("Homework subjects", () => client.homework.listSubjects());
 
-  const today = new Date();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - today.getDay() + 1);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  await run("Timetable (this week)", () => client.calendar.getTimetable(fmt(monday), fmt(sunday)));
+  console.log("\n  --- Custom scrapers ---");
+  await run("Grades (descriptive/numeric)", () => scrapeDescriptiveGrades(client.caller));
+  await run("Attendance summary", () => scrapeAttendance(client.caller));
+  await run("Timetable (this week)", () => scrapeTimetable(client.caller));
 
   console.log("\nDone.");
 }

@@ -14,12 +14,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test:live": "node --experimental-strip-types scripts/test-live.ts",
-    "test:live:verbose": "VERBOSE=1 node --experimental-strip-types scripts/test-live.ts"
+    "test:live": "tsx scripts/test-live.ts",
+    "test:live:verbose": "VERBOSE=1 tsx scripts/test-live.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "openclaw": "latest",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.0"
   }
 }
