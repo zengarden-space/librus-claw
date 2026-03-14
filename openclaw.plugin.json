@@ -1,0 +1,31 @@
+{
+  "id": "librus-claw",
+  "name": "Librus Claw",
+  "description": "Access Librus Synergia school data: grades, attendance, homework, timetable, messages.",
+  "skills": ["./skills"],
+  "uiHints": {
+    "username": {
+      "label": "Librus Username",
+      "help": "Your Librus Synergia login username."
+    },
+    "password": {
+      "label": "Librus Password",
+      "sensitive": true,
+      "help": "Your Librus Synergia password."
+    },
+    "sessionTtlMinutes": {
+      "label": "Session TTL (minutes)",
+      "help": "How long to cache the Librus session before re-authenticating. Default: 90."
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["username", "password"],
+    "properties": {
+      "username": { "type": "string" },
+      "password": { "type": "string" },
+      "sessionTtlMinutes": { "type": "number", "default": 90 }
+    }
+  }
+}

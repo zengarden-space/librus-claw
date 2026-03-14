@@ -1,0 +1,25 @@
+{
+  "name": "librus-claw",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin for Librus Synergia school data",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48",
+    "librus-api": "^2.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:live": "node --experimental-strip-types scripts/test-live.ts",
+    "test:live:verbose": "VERBOSE=1 node --experimental-strip-types scripts/test-live.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "openclaw": "latest",
+    "typescript": "^5.7.0"
+  }
+}
