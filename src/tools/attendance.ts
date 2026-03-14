@@ -10,12 +10,18 @@ export function registerAttendanceTools(api: OpenClawPluginApi): void {
     description:
       "Fetch student attendance summary from Librus Synergia. " +
       "Use when the user asks about absences, attendance, truancy, or attendance percentage. " +
-      "Returns attendance data per semester.",
-    parameters: Type.Object({}),
-    async execute(_id, _params) {
+      "Returns attendance data per semester as a markdown table.",
+    parameters: Type.Object({
+      student: Type.Optional(
+        Type.String({
+          description: "Student ID (from get_librus_students). Omit to use the default student.",
+        }),
+      ),
+    }),
+    async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg);
+        const client = await getLibrusClient(cfg, params.student);
         const text = await scrapeAttendance(client.caller);
         return { details: null, content: [{ type: "text" as const, text }] };
       } catch (err) {

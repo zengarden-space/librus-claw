@@ -39,11 +39,16 @@ export function registerMessagesTools(api: OpenClawPluginApi): void {
           enum: ["received", "sent"],
         }),
       ),
+      student: Type.Optional(
+        Type.String({
+          description: "Student ID (from get_librus_students). Omit to use the default student.",
+        }),
+      ),
     }),
     async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg);
+        const client = await getLibrusClient(cfg, params.student);
 
         const folderId = params.folder === "sent" ? FOLDER_SENT : FOLDER_RECEIVED;
         const raw = (await client.inbox.listInbox(folderId)) as RawMessage[];
@@ -81,11 +86,17 @@ export function registerMessagesTools(api: OpenClawPluginApi): void {
     description:
       "Fetch school announcements from Librus Synergia. " +
       "Use when the user asks about announcements, school news, or notices.",
-    parameters: Type.Object({}),
-    async execute(_id, _params) {
+    parameters: Type.Object({
+      student: Type.Optional(
+        Type.String({
+          description: "Student ID (from get_librus_students). Omit to use the default student.",
+        }),
+      ),
+    }),
+    async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg);
+        const client = await getLibrusClient(cfg, params.student);
         const raw = await client.inbox.listAnnouncements();
 
         return {

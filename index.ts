@@ -1,5 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk/core";
+import { registerStudentsTools } from "./src/tools/students.js";
 import { registerGradesTools } from "./src/tools/grades.js";
 import { registerAttendanceTools } from "./src/tools/attendance.js";
 import { registerHomeworkTools } from "./src/tools/homework.js";
@@ -18,6 +19,7 @@ const plugin: {
   description: "Access Librus Synergia school data: grades, attendance, homework, timetable, messages.",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
+    registerStudentsTools(api);
     registerGradesTools(api);
     registerAttendanceTools(api);
     registerHomeworkTools(api);

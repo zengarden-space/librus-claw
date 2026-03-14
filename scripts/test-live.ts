@@ -46,7 +46,7 @@ if (!username || !password) {
 }
 
 import { getLibrusClient } from "../src/client/session.js";
-import { scrapeDescriptiveGrades, scrapeAttendance, scrapeTimetable } from "../src/client/scraper.js";
+import { scrapeDescriptiveGrades, scrapeAttendance, scrapeTimetable, scrapeStudentList } from "../src/client/scraper.js";
 
 const cfg = { username, password };
 
@@ -86,10 +86,39 @@ async function main(): Promise<void> {
   await run("Inbox", () => client.inbox.listInbox(5));
   await run("Homework subjects", () => client.homework.listSubjects());
 
-  console.log("\n  --- Custom scrapers ---");
+  console.log("\n  --- Multi-student ---");
+  const students = await (async () => {
+    process.stdout.write("  Student list... ");
+    try {
+      const list = await scrapeStudentList(client.caller);
+      const summary = list.length > 0
+        ? list.map((s) => `${s.name} (id=${s.id})`).join(", ")
+        : "single-student account (no /rodzina page)";
+      console.log(`✓  ${summary}`);
+      if (process.env.VERBOSE) console.log(JSON.stringify(list, null, 2));
+      return list;
+    } catch (err) {
+      console.log("✗");
+      console.error("   ", err instanceof Error ? err.message : String(err));
+      return [];
+    }
+  })();
+
+  console.log("\n  --- Custom scrapers (markdown output) ---");
   await run("Grades (descriptive/numeric)", () => scrapeDescriptiveGrades(client.caller));
   await run("Attendance summary", () => scrapeAttendance(client.caller));
   await run("Timetable (this week)", () => scrapeTimetable(client.caller));
+
+  // If multiple students found, test switching to each
+  if (students.length > 1) {
+    console.log("\n  --- Multi-student switching ---");
+    for (const student of students) {
+      await run(`Switch to ${student.name} (id=${student.id})`, async () => {
+        const c = await getLibrusClient(cfg, student.id);
+        return c.info.getAccountInfo();
+      });
+    }
+  }
 
   console.log("\nDone.");
 }

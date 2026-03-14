@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@sinclair/typebox": "0.34.48",
-    "librus-api": "^2.0.0"
+    "librus-api": "^2.0.0",
+    "turndown": "^7.2.2",
+    "turndown-plugin-gfm": "^1.0.2"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/turndown": "^5.0.6",
     "openclaw": "latest",
     "tsx": "^4.21.0",
     "typescript": "^5.7.0"

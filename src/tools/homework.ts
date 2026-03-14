@@ -41,11 +41,16 @@ export function registerHomeworkTools(api: OpenClawPluginApi): void {
           description: "Filter by subject name (Polish, case-insensitive). Omit for all subjects.",
         }),
       ),
+      student: Type.Optional(
+        Type.String({
+          description: "Student ID (from get_librus_students). Omit to use the default student.",
+        }),
+      ),
     }),
     async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg);
+        const client = await getLibrusClient(cfg, params.student);
 
         const today = new Date();
         const until = new Date(today);

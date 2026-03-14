@@ -4,6 +4,7 @@ import type { PluginConfig } from "./types.js";
 const require = createRequire(import.meta.url);
 
 const API_URL = "https://api.librus.pl";
+const BASE_URL = "https://synergia.librus.pl";
 
 type LibrusInstance = {
   authorize(username: string, password: string): Promise<void>;
@@ -47,6 +48,7 @@ type LibrusInstance = {
 
 type CachedSession = {
   client: LibrusInstance;
+  currentStudentId: string | null;
   createdAt: number;
   ttlMs: number;
 };
@@ -81,22 +83,26 @@ async function authorizeFixed(client: LibrusInstance, username: string, password
   await client.caller.get(gotoUrl);
 }
 
-export async function getLibrusClient(config: PluginConfig): Promise<LibrusInstance> {
+export async function getLibrusClient(config: PluginConfig, studentId?: string): Promise<LibrusInstance> {
   const ttlMs = (config.sessionTtlMinutes ?? 90) * 60 * 1000;
   const now = Date.now();
 
-  if (cached && now - cached.createdAt < cached.ttlMs) {
-    return cached.client;
+  if (!cached || now - cached.createdAt >= cached.ttlMs) {
+    const Librus = require("librus-api") as new () => LibrusInstance;
+    const client = new Librus();
+    // _initializeCaller is async but not awaited in the constructor — force it here
+    await (client as unknown as { _initializeCaller(): Promise<void> })._initializeCaller();
+    await authorizeFixed(client, config.username, config.password);
+    cached = { client, currentStudentId: null, createdAt: now, ttlMs };
   }
 
-  const Librus = require("librus-api") as new () => LibrusInstance;
-  const client = new Librus();
-  // _initializeCaller is async but not awaited in the constructor — force it here
-  await (client as unknown as { _initializeCaller(): Promise<void> })._initializeCaller();
-  await authorizeFixed(client, config.username, config.password);
+  // Switch student context if requested and different from current
+  if (studentId && cached.currentStudentId !== studentId) {
+    await cached.client.caller.get(`${BASE_URL}/zmien_ucznia/${studentId}`);
+    cached.currentStudentId = studentId;
+  }
 
-  cached = { client, createdAt: now, ttlMs };
-  return client;
+  return cached.client;
 }
 
 export function invalidateSession(): void {
