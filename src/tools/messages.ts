@@ -1,19 +1,23 @@
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
-import { getLibrusClient, invalidateSession } from "../client/session.js";
+import { getLibrusClient, invalidateSession, type Caller } from "../client/session.js";
+import { scrapeInbox, scrapeInboxMessageLinks, scrapeMessageDetail, scrapeAnnouncements } from "../client/scraper.js";
 import type { PluginConfig } from "../client/types.js";
-
-type RawMessage = {
-  id: number;
-  user: string;
-  title: string;
-  date: string;
-  read: boolean;
-};
 
 // Librus inbox folder IDs
 const FOLDER_RECEIVED = 5;
 const FOLDER_SENT = 6;
+
+async function scrapeInboxWithDetails(caller: Caller, folderId: number): Promise<string> {
+  const inbox = await scrapeInbox(caller, folderId);
+  const links = await scrapeInboxMessageLinks(caller, folderId);
+  const parts = [inbox];
+  for (const link of links) {
+    const detail = await scrapeMessageDetail(caller, link);
+    parts.push(detail);
+  }
+  return parts.join("\n\n---\n\n");
+}
 
 export function registerMessagesTools(api: OpenClawPluginApi): void {
   api.registerTool({
@@ -23,16 +27,6 @@ export function registerMessagesTools(api: OpenClawPluginApi): void {
       "Use when the user asks about messages, emails, notifications from teachers, or inbox. " +
       "Returns a list of messages with sender, subject, and date.",
     parameters: Type.Object({
-      limit: Type.Optional(
-        Type.Number({
-          description: "Maximum number of messages to return. Default: 10.",
-        }),
-      ),
-      unread_only: Type.Optional(
-        Type.Boolean({
-          description: "If true, return only unread messages.",
-        }),
-      ),
       folder: Type.Optional(
         Type.String({
           description: "Folder to read: 'received' (default) or 'sent'.",
@@ -48,31 +42,11 @@ export function registerMessagesTools(api: OpenClawPluginApi): void {
     async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg, params.student);
-
+        const caller = await getLibrusClient(cfg, params.student);
         const folderId = params.folder === "sent" ? FOLDER_SENT : FOLDER_RECEIVED;
-        const raw = (await client.inbox.listInbox(folderId)) as RawMessage[];
-
-        let messages = raw.filter(Boolean);
-
-        if (params.unread_only) {
-          messages = messages.filter((m) => !m.read);
-        }
-
-        const limit = params.limit ?? 10;
-        messages = messages.slice(0, limit);
-
-        const result = messages.map((m) => ({
-          id: m.id,
-          from: m.user,
-          subject: m.title,
-          date: m.date,
-          read: m.read,
-          folder: folderId === FOLDER_RECEIVED ? "received" : "sent",
-        }));
-
+        const text = await scrapeInboxWithDetails(caller, folderId);
         return {
-          details: null, content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          details: null, content: [{ type: "text" as const, text }],
         };
       } catch (err) {
         invalidateSession();
@@ -96,11 +70,10 @@ export function registerMessagesTools(api: OpenClawPluginApi): void {
     async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg, params.student);
-        const raw = await client.inbox.listAnnouncements();
-
+        const caller = await getLibrusClient(cfg, params.student);
+        const text = await scrapeAnnouncements(caller);
         return {
-          details: null, content: [{ type: "text" as const, text: JSON.stringify(raw, null, 2) }],
+          details: null, content: [{ type: "text" as const, text }],
         };
       } catch (err) {
         invalidateSession();

@@ -15,8 +15,8 @@ export function registerStudentsTools(api: OpenClawPluginApi): void {
     async execute(_id, _params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg);
-        const students = await scrapeStudentList(client.caller);
+        const caller = await getLibrusClient(cfg);
+        const students = await scrapeStudentList(caller);
         return { details: null, content: [{ type: "text" as const, text: JSON.stringify(students, null, 2) }] };
       } catch (err) {
         invalidateSession();

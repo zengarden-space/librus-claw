@@ -46,9 +46,23 @@ if (!username || !password) {
 }
 
 import { getLibrusClient } from "../src/client/session.js";
-import { scrapeDescriptiveGrades, scrapeAttendance, scrapeTimetable, scrapeStudentList } from "../src/client/scraper.js";
+import {
+  scrapeDescriptiveGrades,
+  scrapeAttendance,
+  scrapeTimetable,
+  scrapeStudentList,
+  scrapeHomework,
+  scrapeInbox,
+  scrapeInboxMessageLinks,
+  scrapeMessageDetail,
+  scrapeAnnouncements,
+} from "../src/client/scraper.js";
 
 const cfg = { username, password };
+
+function formatDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 async function run(label: string, fn: () => Promise<unknown>): Promise<void> {
   process.stdout.write(`  ${label}... `);
@@ -56,7 +70,7 @@ async function run(label: string, fn: () => Promise<unknown>): Promise<void> {
     const result = await fn();
     console.log("✓");
     if (process.env.VERBOSE) {
-      console.log(JSON.stringify(result, null, 2).slice(0, 500));
+      console.log(String(typeof result === "string" ? result : JSON.stringify(result, null, 2)).slice(0, 800));
     }
   } catch (err) {
     console.log("✗");
@@ -68,7 +82,7 @@ async function main(): Promise<void> {
   console.log("\nLibrus Claw — live integration test");
   console.log(`Account: ${username}\n`);
 
-  const client = await (async () => {
+  const caller = await (async () => {
     process.stdout.write("  Authenticating... ");
     try {
       const c = await getLibrusClient(cfg);
@@ -81,16 +95,28 @@ async function main(): Promise<void> {
     }
   })();
 
-  await run("Account info", () => client.info.getAccountInfo());
-  await run("Announcements", () => client.inbox.listAnnouncements());
-  await run("Inbox", () => client.inbox.listInbox(5));
-  await run("Homework subjects", () => client.homework.listSubjects());
+  console.log("\n  --- Scrapers ---");
+  await run("Grades", () => scrapeDescriptiveGrades(caller));
+  await run("Attendance", () => scrapeAttendance(caller));
+  await run("Timetable (this week)", () => scrapeTimetable(caller));
 
-  console.log("\n  --- Multi-student ---");
+  const past30 = formatDate(new Date(Date.now() - 30 * 86400_000));
+  const nextWeek = formatDate(new Date(Date.now() + 7 * 86400_000));
+  await run("Homework (last 30 days + next 7)", () => scrapeHomework(caller, past30, nextWeek));
+  await run("Inbox", () => scrapeInbox(caller, 5));
+  if (process.env.VERBOSE) {
+    const links = await scrapeInboxMessageLinks(caller, 5);
+    for (const link of links.slice(0, 3)) {
+      await run(`Message ${link}`, () => scrapeMessageDetail(caller, link));
+    }
+  }
+  await run("Announcements", () => scrapeAnnouncements(caller));
+
+  console.log("\n  --- Students ---");
   const students = await (async () => {
     process.stdout.write("  Student list... ");
     try {
-      const list = await scrapeStudentList(client.caller);
+      const list = await scrapeStudentList(caller);
       const summary = list.length > 0
         ? list.map((s) => `${s.name} (id=${s.id})`).join(", ")
         : "single-student account (no /rodzina page)";
@@ -104,18 +130,13 @@ async function main(): Promise<void> {
     }
   })();
 
-  console.log("\n  --- Custom scrapers (markdown output) ---");
-  await run("Grades (descriptive/numeric)", () => scrapeDescriptiveGrades(client.caller));
-  await run("Attendance summary", () => scrapeAttendance(client.caller));
-  await run("Timetable (this week)", () => scrapeTimetable(client.caller));
-
   // If multiple students found, test switching to each
   if (students.length > 1) {
     console.log("\n  --- Multi-student switching ---");
     for (const student of students) {
-      await run(`Switch to ${student.name} (id=${student.id})`, async () => {
+      await run(`Switch + grades for ${student.name} (id=${student.id})`, async () => {
         const c = await getLibrusClient(cfg, student.id);
-        return c.info.getAccountInfo();
+        return scrapeDescriptiveGrades(c);
       });
     }
   }

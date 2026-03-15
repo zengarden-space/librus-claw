@@ -34,9 +34,9 @@ export function registerTimetableTools(api: OpenClawPluginApi): void {
     async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg, params.student);
+        const caller = await getLibrusClient(cfg, params.student);
         const weekStart = getMondayOf(params.date ? new Date(params.date) : new Date());
-        const text = await scrapeTimetable(client.caller, weekStart);
+        const text = await scrapeTimetable(caller, weekStart);
         return { details: null, content: [{ type: "text" as const, text }] };
       } catch (err) {
         invalidateSession();

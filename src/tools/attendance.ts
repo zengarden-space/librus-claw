@@ -21,8 +21,8 @@ export function registerAttendanceTools(api: OpenClawPluginApi): void {
     async execute(_id, params) {
       const cfg = api.pluginConfig as PluginConfig;
       try {
-        const client = await getLibrusClient(cfg, params.student);
-        const text = await scrapeAttendance(client.caller);
+        const caller = await getLibrusClient(cfg, params.student);
+        const text = await scrapeAttendance(caller);
         return { details: null, content: [{ type: "text" as const, text }] };
       } catch (err) {
         invalidateSession();

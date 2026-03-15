@@ -3,71 +3,51 @@ import type { PluginConfig } from "./types.js";
 
 const require = createRequire(import.meta.url);
 
-const API_URL = "https://api.librus.pl";
-const BASE_URL = "https://synergia.librus.pl";
+/**
+ * Minimal HTTP client interface extracted from librus-api's internal axios caller.
+ * The caller is an axios instance with cookie jar support — all cookies are
+ * preserved automatically between requests, including the Librus session cookie.
+ */
+export type Caller = {
+  get(url: string): Promise<{ data: string; status: number }>;
+  post(url: string, data: unknown): Promise<{ data: string; status: number }>;
+};
 
 type LibrusInstance = {
-  authorize(username: string, password: string): Promise<void>;
-  caller: {
-    get(url: string): Promise<{ data: string; status: number }>;
-    post(url: string, data: unknown): Promise<{ data: string; status: number }>;
-  };
-  cookie: {
-    setCookie(cookie: string, url: string): void;
-    getCookies(url: string): Promise<Array<{ key: string; value: string }>>;
-  };
-  info: {
-    getGrades(): Promise<unknown[]>;
-    getGrade(id: number): Promise<unknown>;
-    getAccountInfo(): Promise<unknown>;
-    getLuckyNumber(): Promise<number>;
-  };
-  absence: {
-    getAbsences(): Promise<unknown[]>;
-    getAbsence(id: number): Promise<unknown>;
-  };
-  homework: {
-    listSubjects(): Promise<unknown[]>;
-    listHomework(subjectId: number, from: string, to: string): Promise<unknown[]>;
-    getHomework(id: number): Promise<unknown>;
-  };
-  calendar: {
-    getTimetable(from: string, to: string): Promise<unknown>;
-    getCalendar(month?: number, year?: number): Promise<unknown>;
-    getEvent(id: number): Promise<unknown>;
-  };
-  inbox: {
-    listInbox(folder: number, page?: number): Promise<unknown[]>;
-    getMessage(folder: number, id: number): Promise<unknown>;
-    listReceivers(type: string): Promise<unknown[]>;
-    listAnnouncements(): Promise<unknown[]>;
-    sendMessage(userId: number, title: string, body: string): Promise<void>;
-    removeMessage(id: number): Promise<void>;
-  };
+  _initializeCaller(): Promise<void>;
+  caller: Caller;
 };
 
 type CachedSession = {
-  client: LibrusInstance;
+  caller: Caller;
   currentStudentId: string | null;
   createdAt: number;
   ttlMs: number;
 };
 
+const API_URL = "https://api.librus.pl";
+const BASE_URL = "https://synergia.librus.pl";
+
 let cached: CachedSession | null = null;
 
 /**
- * Authenticate using the librus-apix approach:
- * POST login → follow goTo URL → extract DZIENNIKSID + SDZIENNIKSID cookies.
- * This avoids the broken 2FA/Grant redirect steps in librus-api's own authorize().
+ * Authenticate using the librus-api Librus instance's pre-configured axios caller.
+ *
+ * We use librus-api's internal axios+cookiejar setup but perform the OAuth flow
+ * ourselves: POST login returns JSON { goTo: "<synergia URL>?code=..." } which
+ * we then GET to establish the Synergia session. We skip librus-api's built-in
+ * authorize() because it incorrectly appends a 2FA-skip step that causes
+ * synergia.librus.pl to respond with error=invalid_request, which clears the session.
  */
-async function authorizeFixed(client: LibrusInstance, username: string, password: string): Promise<void> {
-  // Ensure caller is initialized (librus-api does this lazily)
-  await client.caller.get(`${API_URL}/OAuth/Authorization?client_id=46&response_type=code&scope=mydata`);
+async function authorize(caller: Caller, username: string, password: string): Promise<void> {
+  await caller.get(
+    `${API_URL}/OAuth/Authorization?client_id=46&response_type=code&scope=mydata`,
+  );
 
-  const loginResp = await (client.caller.post as (url: string, data: unknown) => Promise<{ data: unknown }>)(
+  const loginResp = await caller.post(
     `${API_URL}/OAuth/Authorization?client_id=46`,
     new URLSearchParams({ action: "login", login: username, pass: password }),
-  ) as { data: { status: string; goTo?: string; errors?: Array<{ message: string }> } };
+  ) as unknown as { data: { status: string; goTo?: string; errors?: Array<{ message: string }> } };
 
   const body = loginResp.data;
   if (body.status === "error") {
@@ -78,31 +58,29 @@ async function authorizeFixed(client: LibrusInstance, username: string, password
   const goTo = body.goTo;
   if (!goTo) throw new Error("Librus auth: no goTo URL in login response");
 
-  // Follow the redirect — this sets DZIENNIKSID + SDZIENNIKSID on synergia.librus.pl
   const gotoUrl = goTo.startsWith("http") ? goTo : `${API_URL}${goTo}`;
-  await client.caller.get(gotoUrl);
+  await caller.get(gotoUrl);
 }
 
-export async function getLibrusClient(config: PluginConfig, studentId?: string): Promise<LibrusInstance> {
+export async function getLibrusClient(config: PluginConfig, studentId?: string): Promise<Caller> {
   const ttlMs = (config.sessionTtlMinutes ?? 90) * 60 * 1000;
   const now = Date.now();
 
   if (!cached || now - cached.createdAt >= cached.ttlMs) {
     const Librus = require("librus-api") as new () => LibrusInstance;
-    const client = new Librus();
-    // _initializeCaller is async but not awaited in the constructor — force it here
-    await (client as unknown as { _initializeCaller(): Promise<void> })._initializeCaller();
-    await authorizeFixed(client, config.username, config.password);
-    cached = { client, currentStudentId: null, createdAt: now, ttlMs };
+    const instance = new Librus();
+    // Constructor calls _initializeCaller() without awaiting — ensure it's ready
+    if (!instance.caller) await instance._initializeCaller();
+    await authorize(instance.caller, config.username, config.password);
+    cached = { caller: instance.caller, currentStudentId: null, createdAt: now, ttlMs };
   }
 
-  // Switch student context if requested and different from current
   if (studentId && cached.currentStudentId !== studentId) {
-    await cached.client.caller.get(`${BASE_URL}/zmien_ucznia/${studentId}`);
+    await cached.caller.get(`${BASE_URL}/zmien_ucznia/${studentId}`);
     cached.currentStudentId = studentId;
   }
 
-  return cached.client;
+  return cached.caller;
 }
 
 export function invalidateSession(): void {
